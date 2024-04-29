@@ -12,23 +12,20 @@ def test(a, b):
             return False
     return True
 
-
 class FFT:
 
-    def __init__(self, indexes: List[int], inverse: bool):
-        self.k = 2 if inverse else 1
+    def __init__(self, indexes: List[int]):
         self.indexes: List[int] = indexes
         self.N: int = len(indexes)
         if self.N > 1:
             assert self.N % 2 == 0
             self.even = FFT(
-                [indexes[i] for i in range(self.N) if i % 2 == 0], inverse)
+                [indexes[i] for i in range(self.N) if i % 2 == 0])
             self.odd = FFT(
-                [indexes[i] for i in range(self.N) if i % 2 == 1], inverse)
+                [indexes[i] for i in range(self.N) if i % 2 == 1])
             self.factor = []
             for i in range(self.N):
-                k = 1 if inverse else -1
-                theta = k * 2 * np.pi * i / self.N
+                theta = -2 * np.pi * i / self.N
                 self.factor.append(math.cos(theta) + 1j * math.sin(theta))
 
     def compute(self, x):
@@ -42,17 +39,55 @@ class FFT:
         half = self.N // 2
         assert len(even) == half
         assert len(odd) == half
-        r = [0 + 0j] * self.N
-        for i in range(half):
-            r[i] = (even[i] + self.factor[i] * odd[i]) / self.k
-            r[half + i] = (even[i] + self.factor[half + i] * odd[i]) / self.k
-        return r
+
+        def r(i):
+            if i < half:
+                return even[i] + self.factor[i] * odd[i]
+            return even[i - half] + self.factor[i] * odd[i - half]
+
+        return [r(i) for i in range(self.N)]
+
+
+class IFFT:
+
+    def __init__(self, indexes: List[int]):
+        self.indexes: List[int] = indexes
+        self.N: int = len(indexes)
+        if self.N > 1:
+            assert self.N % 2 == 0
+            self.even = IFFT(
+                [indexes[i] for i in range(self.N) if i % 2 == 0])
+            self.odd = IFFT(
+                [indexes[i] for i in range(self.N) if i % 2 == 1])
+            self.factor = []
+            for i in range(self.N):
+                theta = 2 * np.pi * i / self.N
+                self.factor.append(math.cos(theta) + 1j * math.sin(theta))
+
+    def compute(self, x):
+        assert self.N > 0
+        if self.N == 1:
+            return [x[self.indexes[0]]]
+
+        assert self.N % 2 == 0
+        even = self.even.compute(x)
+        odd = self.odd.compute(x)
+        half = self.N // 2
+        assert len(even) == half
+        assert len(odd) == half
+
+        def r(i):
+            if i < half:
+                return (even[i] + self.factor[i] * odd[i]) / 2.0
+            return (even[i - half] + self.factor[i] * odd[i - half])/2.0
+
+        return [r(i) for i in range(self.N)]
 
 
 def run(n):
     indexes = list(range(2**n))
-    f = FFT(indexes, False)
-    inv_f = FFT(indexes, True)
+    f = FFT(indexes)
+    inv_f = IFFT(indexes)
     x = [random.randint(0, 1000) for _ in indexes]
     y = f.compute(x)
     assert test(y, np.fft.fft(x))
